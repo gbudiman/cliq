@@ -1,0 +1,3 @@
+insert your LP email address here
+insert your password here
+delete this line, save this file, and rename this file to account.txt
