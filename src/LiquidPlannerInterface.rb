@@ -31,17 +31,26 @@ class LiquidPlannerInterface
 				  'Only either --reverse or --week-length can be used, not both'
 		end
 
-		@date_info[:year] = h[:year] || Date.today.cwyear
-		@date_info[:week] = h[:week] || Date.today.cweek
-		@date_info[:week] = 1 if h[:year] != nil and h[:week] == nil 
+		case h[:date]
+		when nil
+			given_date = Date.today
+			@date_info[:week_length] = 1
+		when /^\d{4,4}$/
+			given_date = Date.parse(h[:date] + '/1')
+			@date_info[:week_length] = 53
+		when /^\d{4,4}.\d+$/
+			given_date = Date.parse(h[:date])
+			@date_info[:week_length] = 5
+		else
+			given_date = Date.parse(h[:date])
+			@date_info[:week_length] = 1
+		end
 
-		week_day = Date.commercial(@date_info[:year], @date_info[:week])
+		week_day = Date.commercial(given_date.cwyear, given_date.cweek)
+		@date_info[:date] = "#{week_day.year}-#{week_day.month}-#{week_day.day}"
 
 		if h[:week_length] != nil
 			@date_info[:week_length] = h[:week_length] < 1 ? 1 : h[:week_length]
-		else
-			@date_info[:week_length] = 1
-			@date_info[:week_length] = 52 if h[:year] != nil and h[:week] == nil		
 		end
 
 		if h[:reverse]
@@ -98,7 +107,6 @@ class LiquidPlannerInterface
 
 	def list_timesheets_in_workspace _id, **h	
 		arg = Hash.new
-
 
 		arg[:member_id] = @account[:id] unless h[:all_members]
 		arg[:start_date], arg[:end_date] = determine_date_range h

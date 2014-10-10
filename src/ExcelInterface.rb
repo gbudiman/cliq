@@ -1,3 +1,4 @@
+require 'date'
 require 'write_xlsx'
 
 class ExcelInterface
@@ -18,7 +19,7 @@ class ExcelInterface
 
 			md.each do |year, yd|
 				yd.each do |week, wd|
-					first_day = self.get_first_day_given_commercial(year, week)
+					first_day = Date.commercial(year, week)
 					ws.write(row, col, "Week of #{first_day}")
 					row += 1
 
@@ -69,9 +70,5 @@ class ExcelInterface
 		end
 
 		wb.close
-	end
-
-	def self.get_first_day_given_commercial _y, _w
-		return Date.strptime("#{_y} #{_w}", "%Y %W")
 	end
 end

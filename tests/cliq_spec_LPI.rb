@@ -2,8 +2,6 @@ require_relative '../src/LiquidPlannerInterface.rb'
 require 'ap'
 require 'text-table'
 
-RSpec.configure { |c| c.include Helpers }
-
 describe 'LiquidPlannerInterface' do
 	before :each do
 		email, pass = LiquidPlannerInterface::load_account_info
@@ -13,7 +11,7 @@ describe 'LiquidPlannerInterface' do
 	end
 
 	context 'date range of 1 week' do
-		it 'should return today\'s week correctly' do
+		it 'should return today\'s week correctly when no argument is given' do
 			expect(@lp.determine_date_range).to \
 				eq([Date.commercial(Date.today.cwyear, 
 									Date.today.cweek),
@@ -21,75 +19,105 @@ describe 'LiquidPlannerInterface' do
 									Date.today.cweek).next_day(6)])
 		end
 
-		it 'should return first week of the year correctly' do
-			expect(@lp.determine_date_range(year: 2014)).to \
+		it 'should return the first week of Y2014 given 2014/1/1' do
+			expect(@lp.determine_date_range(date: '2014/1/1')).to \
 				eq([Date.commercial(2014, 1), 
-					Date.commercial(2015, 1).prev_day])
+					Date.commercial(2014, 2).prev_day])
 		end
 
-		it 'should return Y2014 W34 correctly' do
-			expect(@lp.determine_date_range(year: 2014, week: 34)).to \
-				eq([Date.commercial(2014, 34), 
-					Date.commercial(2014, 35).prev_day])
+		it 'should return the last week of Y2014 given 2014/12/25' do
+			expect(@lp.determine_date_range(date: '2014/12/25')).to \
+				eq([Date.commercial(2014, 52), 
+					Date.commercial(2014, 52).next_day(6)])
 		end
 
-		it 'should return W34 correctly' do
-			expect(@lp.determine_date_range(year: 2014, week: 34)).to \
-				eq([Date.commercial(Date.today.cwyear, 34), 
-					Date.commercial(Date.today.cwyear, 35).prev_day])
+		it 'should properly handle corner-case 2013/12/31' do
+			expect(@lp.determine_date_range(date: '2013/12/31')).to \
+				eq([Date.commercial(2014, 1), 
+					Date.commercial(2014, 1).next_day(6)])
+		end
+
+		it 'should return the first week of current year given 1/1' do
+			date = Date.new(Date.today.year, 1, 1)
+			commercial = Date.commercial(date.cwyear, date.cweek)
+			expect(@lp.determine_date_range(date: '1/1')).to \
+				eq([commercial, commercial.next_day(6)])
 		end
 	end
 
 	context 'date range with 3 weeks forward' do
 		it 'should return first week of the year correctly' do
-			expect(@lp.determine_date_range(year: 2014, week_length: 3)).to \
-				eq([Date.commercial(2014, 1),
+			expect(@lp.determine_date_range(week_length: 3)).to \
+				eq([Date.commercial(Date.today.cwyear,
+									Date.today.cweek),
+					Date.commercial(Date.today.cwyear,
+									Date.today.cweek).next_day(20)])
+		end
+
+		it 'should return the first week of Y2014 given 2014/1/1' do
+			expect(@lp.determine_date_range(date: '2014/1/1', 
+											week_length: 3)).to \
+				eq([Date.commercial(2014, 1), 
 					Date.commercial(2014, 4).prev_day])
 		end
 
-		it 'should return Y2014 W34 correctly' do
-			expect(@lp.determine_date_range(year: 2014, week: 34, 
+		it 'should return the last week of Y2014 given 2014/12/25' do
+			expect(@lp.determine_date_range(date: '2014/12/25', 
 											week_length: 3)).to \
-				eq([Date.commercial(2014, 34), 
-					Date.commercial(2014, 37).prev_day])
-		end
-
-		it 'should return W34 correctly' do
-			expect(@lp.determine_date_range(year: 2014, week: 34, 
-											week_length: 3)).to \
-				eq([Date.commercial(Date.today.cwyear, 34), 
-					Date.commercial(Date.today.cwyear, 37).prev_day])
+				eq([Date.commercial(2014, 52), 
+					Date.commercial(2015, 3).prev_day])
 		end
 	end
 
 	context 'date range with 3 weeks backward' do
 		it 'should return today\'s week correctly' do
 			expect(@lp.determine_date_range(reverse: 3)).to \
-				eq([Date.commercial(Date.today.cwyear, 
-									Date.today.cweek - 3),
-					Date.commercial(Date.today.cwyear, 
+				eq([Date.commercial(Date.today.cwyear,
+									Date.today.cweek).prev_day(21),
+					Date.commercial(Date.today.cwyear,
 									Date.today.cweek).next_day(6)])
 		end
 
-		it 'should return first week of the year correctly' do
-			expect(@lp.determine_date_range(year: 2014, reverse: 3)).to \
-				eq([Date.commercial(2013, 50),
+		it 'should return the first week of Y2014 given 2014/1/1' do
+			expect(@lp.determine_date_range(date: '2014/1/1', 
+											reverse: 3)).to \
+				eq([Date.commercial(2013, 50), 
 					Date.commercial(2014, 2).prev_day])
 		end
 
-		it 'should return Y2014 W34 correctly' do
-			expect(@lp.determine_date_range(year: 2014, week: 34, 
+		it 'should return the last week of Y2014 given 2014/12/25' do
+			expect(@lp.determine_date_range(date: '2014/12/25', 
 											reverse: 3)).to \
-				eq([Date.commercial(2014, 31), 
-					Date.commercial(2014, 35).prev_day])
+				eq([Date.commercial(2014, 49), 
+					Date.commercial(2015, 1).prev_day])
 		end
+	end
 
-		it 'should return W34 correctly' do
-			expect(@lp.determine_date_range(year: 2014, week: 34, 
-											reverse: 3)).to \
-				eq([Date.commercial(Date.today.cwyear, 31), 
-					Date.commercial(Date.today.cwyear, 35).prev_day])
-		end
+	it 'should return monthly date range of Y2014 M7' do
+		ws = Date.new(2014, 7)
+		we = Date.new(2014, 8)
+		cs = Date.commercial(ws.cwyear, ws.cweek)
+		ce = Date.commercial(we.cwyear, we.cweek)
+		expect(@lp.determine_date_range(date: '2014/7')).to \
+			eq([cs, ce.next_day(6)])
+	end
+
+	it 'should return monthly date range of Y2014 M2' do
+		ws = Date.new(2014, 2)
+		we = Date.new(2014, 3)
+		cs = Date.commercial(ws.cwyear, ws.cweek)
+		ce = Date.commercial(we.cwyear, we.cweek)
+		expect(@lp.determine_date_range(date: '2014/2')).to \
+			eq([cs, ce.next_day(6)])
+	end
+
+	it 'should return yearly date range of Y2014' do
+		ws = Date.new(2014)
+		we = Date.new(2015)
+		cs = Date.commercial(ws.cwyear, ws.cweek)
+		ce = Date.commercial(we.cwyear, we.cweek)
+		expect(@lp.determine_date_range(date: '2014')).to \
+			eq([cs, ce.next_day(6)])
 	end
 
 	it 'should pass basic authentication given email/password' do
