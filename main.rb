@@ -30,12 +30,12 @@ lp = LiquidPlannerInterface.new opts
 
 begin
 	if opts[:download_tasks]
-		lp.populate_lookup_tables_for_workspace opts[:workspace]
-		lp.list_timesheets_in_workspace opts[:workspace], \
-									  { date: ARGV[0],
+		lp.set_current_workspace opts[:workspace]
+		lp.populate_lookup_tables
+		lp.list_timesheets_in_workspace(date: ARGV[0],
 									    week_length: opts[:week_length],
 									    all_members: opts[:all_members],
-									    reverse: opts[:reverse] }
+									    reverse: opts[:reverse])
 
 		path = File.join('reports', 										\
 						 "#{lp.workspaces[opts[:workspace]]}_activities_"	\

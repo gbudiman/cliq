@@ -142,7 +142,7 @@ describe 'LiquidPlannerInterface' do
 
 	context 'given a workspace ID' do
 		before :each do
-			@ws_id = @lp.list_workspaces[0].id
+			@lp.set_current_workspace(@lp.list_workspaces[0].id)
 		end
 
 		after :each do
@@ -150,27 +150,25 @@ describe 'LiquidPlannerInterface' do
 		end
 
 		it 'should be able to create task and update its checklist items' do
-			task = @lp.create_task(ws_id: @ws_id,
-								   name: "New task test #{Time.now}", 
-								   #package: 17209572,
-								   package_id: 17209536,
-								   parent_id: 17209601, #project folder
-								   #parent_id: 17209536, #package
-								   #folder_id: 17209601,
-								   activity_id: 172280,
-								   owner_id: 410218,
-								   description: 'This task is generated',
-								   promise_by: Date.today.next_day(12))
+			@lp.create_task(name: "New task test #{Time.now}", 
+							package_id: 17209536,
+							parent_id: 17209601,
+							activity_id: 172280,
+							owner_id: 410218,
+							description: 'This task is generated',
+							promise_by: Date.today.next_day(12))
 
-			@lp.update_task_checklist(@ws_id, task[:id],
-							 		  checklist: ["New checklist! #{Time.now}"],
-							 		  estimate: [2.0, 5.5])
+			@lp.update_task_properties(checklist: [
+										{ name: "New checklist #{Time.now}",
+										  owner_id: 410218 } ],
+							 		   estimate: [2.0, 5.5])
 
-			@lp.retrieve_task(@ws_id, task[:id])
+			ap @lp.retrieve_task
 		end
 
 		it 'should be able to retrieve a task' do
-			ap @lp.retrieve_task(@ws_id).attributes
+			@lp.set_current_task(@lp.get_tasks.first.attributes[:id])
+			ap @lp.retrieve_task
 			puts 'Sleeping for 12 seconds to avoid account throttling...'
 			sleep 12
 		end
@@ -178,21 +176,21 @@ describe 'LiquidPlannerInterface' do
 		it 'should be able to list everything in workspace' do
 			@table.head = ['T#', 'Type', 'Name']
 
-			@lp.list_items_in_workspace(@ws_id)
+			@lp.list_items_in_workspace
 			@lp.items.each { |id, d| @table.rows << [id, d[:type], d[:name]] }
 		end
 
 		it 'should be able to list activities' do
 			@table.head = ['A#', 'Activity Name']
 
-			@lp.list_activities_in_workspace(@ws_id)
+			@lp.list_activities_in_workspace
 			@lp.activities.each { |id, a| @table.rows << [id, a] }
 		end
 
 		it 'should be able to list members' do
 			@table.head = ['M#', 'User Name', 'Level']
 			
-			@lp.list_members_in_workspace(@ws_id)
+			@lp.list_members_in_workspace
 			@lp.members.each do |id, m| 
 				@table.rows << [id, m[:user_name], m[:access_level]]
 			end
@@ -200,9 +198,8 @@ describe 'LiquidPlannerInterface' do
 
 		it 'should be able to list timesheets with appropriate referencing' do
 			@table.head = ['Member', 'Work', 'Activity', 'Hours']
-			@lp.populate_lookup_tables_for_workspace @ws_id
-			@lp.list_timesheets_in_workspace(@ws_id, 
-											 date: '2014', 
+			@lp.populate_lookup_tables
+			@lp.list_timesheets_in_workspace(date: '2014', 
 											 all_members: true)
 
 			@lp.timesheets.each do |member, md|

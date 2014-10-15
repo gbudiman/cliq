@@ -13,7 +13,8 @@ class LiquidPlannerInterface
 
 	def initialize **h
 		@lp = LiquidPlanner::Base.new(email: h[:email], password: h[:pass])
-		@workspace = h[:workspace]
+		@current_workspace = nil
+		@current_task = nil
 		@activities = {}
 		@items = {}
 		@members = {}
@@ -23,8 +24,25 @@ class LiquidPlannerInterface
 		@account = nil
 	end
 
+	def set_current_task _task_id
+		raise RuntimeError, 'Workspace not set' if @current_workspace == nil
+		@current_task = @current_workspace.tasks(_task_id)
+
+		return self
+	end
+
+	def set_current_workspace _ws_id
+		@current_workspace = @lp.workspaces(_ws_id)
+
+		return self
+	end
+
 	def create_task **h
-		return @lp.workspaces(h[:ws_id]).create_task(h).attributes
+		raise RuntimeError, 'Workspace not set' if @current_workspace == nil
+		task = @current_workspace.create_task(h).attributes
+		set_current_task task[:id]
+
+		return task
 	end
 
 	def determine_date_range **h
@@ -79,39 +97,45 @@ class LiquidPlannerInterface
 		return @lp.account
 	end
 
-	def list_activities_in_workspace _id
-		@lp.workspaces(_id).activities.elements.each do |e|
+	def get_tasks
+		raise RuntimeError, 'Workspace not set' if @current_workspace == nil
+
+		@current_workspace.tasks
+	end
+
+	def list_activities_in_workspace
+		raise RuntimeError, 'Workspace not set' if @current_workspace == nil
+		@current_workspace.activities.elements.each do |e|
 			a = e.attributes
 			@activities[a[:id]] = a[:name]
 		end
 	end
 
-	def list_custom_fields_in_workspace _id
-		ap @lp.workspaces(_id).custom_fields(:all)
-	end
-
-	def list_items_in_workspace _id
-		@lp.workspaces(_id).treeitems.each do |e|
+	def list_items_in_workspace
+		raise RuntimeError, 'Workspace not set' if @current_workspace == nil
+		@current_workspace.treeitems.each do |e|
 			a = e.attributes
 			@items[a[:id]] = a
 		end
 	end
 
-	def list_members_in_workspace _id
-		@lp.workspaces(_id).members.elements.each do |e|
+	def list_members_in_workspace
+		raise RuntimeError, 'Workspace not set' if @current_workspace == nil
+		@current_workspace.members.elements.each do |e|
 			a = e.attributes
 			@members[a[:id]] = { user_name: 	a[:user_name],
 								 access_level: 	a[:access_level] }
 		end
 	end
 
-	def list_timesheets_in_workspace _id, **h	
+	def list_timesheets_in_workspace **h	
+		raise RuntimeError, 'Workspace not set' if @current_workspace == nil
 		arg = Hash.new
 
 		arg[:member_id] = @account[:id] unless h[:all_members]
 		arg[:start_date], arg[:end_date] = determine_date_range h
 
-		@lp.workspaces(_id).timesheet_entries(:all,	arg).each do |e|
+		@current_workspace.timesheet_entries(:all,	arg).each do |e|
 			if e.work > 0 and e.activity_id > 0
 				member = @members[e.member_id][:user_name]
 				activity = @activities[e.activity_id]
@@ -135,37 +159,32 @@ class LiquidPlannerInterface
 		end
 	end
 
-	def populate_lookup_tables_for_workspace _id
+	def populate_lookup_tables
 		list_workspaces
-		list_activities_in_workspace _id
-		list_members_in_workspace _id
-		list_items_in_workspace _id
+		list_activities_in_workspace
+		list_members_in_workspace
+		list_items_in_workspace
 	end
 
-	def retrieve_task _ws_id, _task_id = nil
-		if _task_id == nil
-			@lp.workspaces(_ws_id).tasks.first
-		else
-			@lp.workspaces(_ws_id).tasks(_task_id)
-		end
+	def retrieve_task
+		raise RuntimeError, 'Workspace not set' if @current_workspace == nil
+		raise RuntimeError, 'Task not set' if @current_task == nil
+
+		return @current_task.attributes
 	end
 
-	def update_task_checklist _ws_id, _task_id, **h
-		task = @lp.workspaces(_ws_id).tasks(_task_id)
+	def update_task_properties **h
+		raise RuntimeError, 'Workspace not set' if @current_workspace == nil
+		raise RuntimeError, 'Task not set' if @current_task == nil
+
 		h.each do |property, value|
 			case property
 			when :checklist
 				value.each do |checklist|
-					task.create_checklist_items(name: checklist,
-												owner_id: 410218)
+					@current_task.create_checklist_items(checklist)
 				end
 			when :estimate
-				task.create_estimate(low: value[0], high: value[1])
-			when :package
-				task.package_ids.push(value)
-				task.save
-				#task.create_package(id: value)
-				ap task
+				@current_task.create_estimate(low: value[0], high: value[1])
 			end
 		end						  
 	end
