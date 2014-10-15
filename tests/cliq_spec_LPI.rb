@@ -149,18 +149,37 @@ describe 'LiquidPlannerInterface' do
 			puts @table.to_s
 		end
 
-		it 'should be able to list projects' do
-			@table.head = ['P#', 'Project Name']
+		it 'should be able to create task and update its checklist items' do
+			task = @lp.create_task(ws_id: @ws_id,
+								   name: "New task test #{Time.now}", 
+								   #package: 17209572,
+								   package_id: 17209536,
+								   parent_id: 17209601, #project folder
+								   #parent_id: 17209536, #package
+								   #folder_id: 17209601,
+								   activity_id: 172280,
+								   owner_id: 410218,
+								   description: 'This task is generated',
+								   promise_by: Date.today.next_day(12))
 
-			@lp.list_projects_in_workspace(@ws_id)
-			@lp.projects.each { |id, p| @table.rows << [id, p] }
+			@lp.update_task_checklist(@ws_id, task[:id],
+							 		  checklist: ["New checklist! #{Time.now}"],
+							 		  estimate: [2.0, 5.5])
+
+			@lp.retrieve_task(@ws_id, task[:id])
 		end
 
-		it 'should be able to list tasks' do
-			@table.head = ['T#', 'Task Name']
+		it 'should be able to retrieve a task' do
+			ap @lp.retrieve_task(@ws_id).attributes
+			puts 'Sleeping for 12 seconds to avoid account throttling...'
+			sleep 12
+		end
 
-			@lp.list_tasks_in_workspace(@ws_id)
-			@lp.tasks.each { |id, t| @table.rows << [id, t] }
+		it 'should be able to list everything in workspace' do
+			@table.head = ['T#', 'Type', 'Name']
+
+			@lp.list_items_in_workspace(@ws_id)
+			@lp.items.each { |id, d| @table.rows << [id, d[:type], d[:name]] }
 		end
 
 		it 'should be able to list activities' do
@@ -180,12 +199,10 @@ describe 'LiquidPlannerInterface' do
 		end
 
 		it 'should be able to list timesheets with appropriate referencing' do
-			puts 'Sleeping for 12 seconds to avoid account throttling...'
-			sleep 12
 			@table.head = ['Member', 'Work', 'Activity', 'Hours']
 			@lp.populate_lookup_tables_for_workspace @ws_id
 			@lp.list_timesheets_in_workspace(@ws_id, 
-											 year: 2014, 
+											 date: '2014', 
 											 all_members: true)
 
 			@lp.timesheets.each do |member, md|

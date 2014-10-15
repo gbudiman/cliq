@@ -2,6 +2,7 @@ require_relative 'src/ExcelInterface.rb'
 require_relative 'src/LiquidPlannerInterface.rb'
 require 'ap'
 require 'highline/import'
+require 'ruby-prof'
 require 'trollop'
 
 opts = Trollop::options do
@@ -14,6 +15,7 @@ opts = Trollop::options do
 	opt :reverse, 'Number of weeks to query since today, counting backwards',
 				  type: :int, short: 'r'
 	opt :workspace, 'Override default workspace', default: 125712
+	opt :profile, 'Run profiling'
 end
 
 if File.exists? 'account.txt'
@@ -23,6 +25,7 @@ else
 	opts[:pass] = ask('Password: ') { |q| q.echo = '*' }
 end
 
+RubyProf.start if opts[:profile]
 lp = LiquidPlannerInterface.new opts
 
 begin
@@ -46,4 +49,10 @@ begin
 rescue ArgumentError => e
 	ap e.message
 	ap e.backtrace
+end
+
+if opts[:profile]
+	result = RubyProf.stop
+	printer = RubyProf::GraphPrinter.new(result)
+	printer.print(STDOUT)
 end

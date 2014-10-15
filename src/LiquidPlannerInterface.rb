@@ -4,9 +4,8 @@ require 'LiquidPlanner'
 class LiquidPlannerInterface
 	attr_reader :workspace, 
 				:activities, 
-				:members, 
-				:projects, 
-				:tasks, 
+				:items,
+				:members,  
 				:timesheets, 
 				:workspaces, 
 				:date_info,
@@ -16,13 +15,16 @@ class LiquidPlannerInterface
 		@lp = LiquidPlanner::Base.new(email: h[:email], password: h[:pass])
 		@workspace = h[:workspace]
 		@activities = {}
+		@items = {}
 		@members = {}
-		@projects = {}
-		@tasks = {}
 		@timesheets = {}
 		@workspaces = {}
 		@date_info = {}
 		@account = nil
+	end
+
+	def create_task **h
+		return @lp.workspaces(h[:ws_id]).create_task(h).attributes
 	end
 
 	def determine_date_range **h
@@ -84,24 +86,22 @@ class LiquidPlannerInterface
 		end
 	end
 
+	def list_custom_fields_in_workspace _id
+		ap @lp.workspaces(_id).custom_fields(:all)
+	end
+
+	def list_items_in_workspace _id
+		@lp.workspaces(_id).treeitems.each do |e|
+			a = e.attributes
+			@items[a[:id]] = a
+		end
+	end
+
 	def list_members_in_workspace _id
 		@lp.workspaces(_id).members.elements.each do |e|
 			a = e.attributes
 			@members[a[:id]] = { user_name: 	a[:user_name],
 								 access_level: 	a[:access_level] }
-		end
-	end
-
-	def list_projects_in_workspace _id
-		 @lp.workspaces(_id).projects.each do |e|
-		 	a = e.attributes
-		 	@projects[a[:id]] = a[:name]
-		 end
-	end
-
-	def list_tasks_in_workspace _id
-		@lp.workspaces(_id).tasks.elements.each do |e|
-			@tasks[e.activity_id] = e.name
 		end
 	end
 
@@ -139,8 +139,35 @@ class LiquidPlannerInterface
 		list_workspaces
 		list_activities_in_workspace _id
 		list_members_in_workspace _id
-		list_projects_in_workspace _id
-		list_tasks_in_workspace _id
+		list_items_in_workspace _id
+	end
+
+	def retrieve_task _ws_id, _task_id = nil
+		if _task_id == nil
+			@lp.workspaces(_ws_id).tasks.first
+		else
+			@lp.workspaces(_ws_id).tasks(_task_id)
+		end
+	end
+
+	def update_task_checklist _ws_id, _task_id, **h
+		task = @lp.workspaces(_ws_id).tasks(_task_id)
+		h.each do |property, value|
+			case property
+			when :checklist
+				value.each do |checklist|
+					task.create_checklist_items(name: checklist,
+												owner_id: 410218)
+				end
+			when :estimate
+				task.create_estimate(low: value[0], high: value[1])
+			when :package
+				task.package_ids.push(value)
+				task.save
+				#task.create_package(id: value)
+				ap task
+			end
+		end						  
 	end
 
 	def self.load_account_info
