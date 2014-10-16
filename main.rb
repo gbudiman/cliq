@@ -8,8 +8,7 @@ require 'trollop'
 opts = Trollop::options do
 	opt :all_members, 'Apply actions to all members. Requires certain privilege'
 	opt :download_tasks, 'Download work activities'
-	#opt :year, '4-digits year for LP query', type: :int
-	#opt :week, 'Start week number for LP query', type: :int
+	opt :quiet, 'Quiet mode'
 	opt :week_length, 'Number of weeks to query since week_start',
 					  type: :int, short: 'l'
 	opt :reverse, 'Number of weeks to query since today, counting backwards',
@@ -32,10 +31,10 @@ begin
 	if opts[:download_tasks]
 		lp.set_current_workspace opts[:workspace]
 		lp.populate_lookup_tables
-		lp.list_timesheets_in_workspace(date: ARGV[0],
-									    week_length: opts[:week_length],
-									    all_members: opts[:all_members],
-									    reverse: opts[:reverse])
+		lp.get_timesheets(date: ARGV[0],
+						  week_length: opts[:week_length],
+						  all_members: opts[:all_members],
+						  reverse: opts[:reverse])
 
 		path = File.join('reports', 										\
 						 "#{lp.workspaces[opts[:workspace]]}_activities_"	\

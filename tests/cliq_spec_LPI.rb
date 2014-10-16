@@ -134,7 +134,7 @@ describe 'LiquidPlannerInterface' do
 	it 'should be able to list workspaces' do
 		@table.head = ['W#', 'Workspace Name']
 
-		@lp.list_workspaces
+		@lp.get_workspaces
 		@lp.workspaces.each { |id, w| @table.rows << [id, w] }
 
 		puts @table.to_s
@@ -142,7 +142,7 @@ describe 'LiquidPlannerInterface' do
 
 	context 'given a workspace ID' do
 		before :each do
-			@lp.set_current_workspace(@lp.list_workspaces[0].id)
+			@lp.set_current_workspace(@lp.get_workspaces[0].id)
 		end
 
 		after :each do
@@ -176,21 +176,21 @@ describe 'LiquidPlannerInterface' do
 		it 'should be able to list everything in workspace' do
 			@table.head = ['T#', 'Type', 'Name']
 
-			@lp.list_items_in_workspace
+			@lp.list :items
 			@lp.items.each { |id, d| @table.rows << [id, d[:type], d[:name]] }
 		end
 
 		it 'should be able to list activities' do
 			@table.head = ['A#', 'Activity Name']
 
-			@lp.list_activities_in_workspace
-			@lp.activities.each { |id, a| @table.rows << [id, a] }
+			@lp.list :activities
+			@lp.activities.each { |id, a| @table.rows << [id, a[:name]] }
 		end
 
 		it 'should be able to list members' do
 			@table.head = ['M#', 'User Name', 'Level']
 			
-			@lp.list_members_in_workspace
+			@lp.list :members
 			@lp.members.each do |id, m| 
 				@table.rows << [id, m[:user_name], m[:access_level]]
 			end
@@ -199,8 +199,7 @@ describe 'LiquidPlannerInterface' do
 		it 'should be able to list timesheets with appropriate referencing' do
 			@table.head = ['Member', 'Work', 'Activity', 'Hours']
 			@lp.populate_lookup_tables
-			@lp.list_timesheets_in_workspace(date: '2014', 
-											 all_members: true)
+			@lp.get_timesheets(date: '2014', all_members: true)
 
 			@lp.timesheets.each do |member, md|
 				md.each do |year, yd|

@@ -2,8 +2,7 @@ require 'date'
 require 'LiquidPlanner'
 
 class LiquidPlannerInterface
-	attr_reader :workspace, 
-				:activities, 
+	attr_reader :activities, 
 				:items,
 				:members,  
 				:timesheets, 
@@ -15,13 +14,72 @@ class LiquidPlannerInterface
 		@lp = LiquidPlanner::Base.new(email: h[:email], password: h[:pass])
 		@current_workspace = nil
 		@current_task = nil
+
 		@activities = {}
 		@items = {}
 		@members = {}
 		@timesheets = {}
 		@workspaces = {}
-		@date_info = {}
+		
 		@account = nil
+		@date_info = {}
+		@quiet_mode = h[:quiet] || false
+	end
+
+	def get_account
+		begin
+			@account = @lp.account.attributes
+		rescue ActiveResource::UnauthorizedAccess => e
+			puts 'Unauthorized access. Incorrect email/password?'
+		rescue Exception => e
+			puts e.message
+			ap e.backtrace
+		end
+
+		return @lp.account
+	end
+
+	def get_tasks
+		raise RuntimeError, 'Workspace not set' if @current_workspace == nil
+
+		@current_workspace.tasks
+	end
+
+	def get_timesheets **h	
+		raise RuntimeError, 'Workspace not set' if @current_workspace == nil
+		arg = { entry_count: 0 }
+
+		arg[:member_id] = @account[:id] unless h[:all_members]
+		arg[:start_date], arg[:end_date] = determine_date_range h
+
+		print 'Generating timesheet from ' \
+			+ "#{arg[:start_date]} to #{arg[:end_date]}... " unless @quiet_mode
+
+		@current_workspace.timesheet_entries(:all,	arg).each do |e|
+			if e.work > 0 and e.activity_id > 0
+				arg[:entry_count] += 1
+				member = @members[e.member_id][:user_name]
+				activity = @activities[e.activity_id][:name]
+				date = e.work_performed_on
+				year = Date.parse(date).cwyear
+				week = Date.parse(date).cweek
+				@timesheets[member] ||= {}
+				@timesheets[member][year] ||= {}
+				@timesheets[member][year][week] ||= {}
+				@timesheets[member][year][week][date] ||= {}
+				@timesheets[member][year][week][date][activity] ||= 0
+				@timesheets[member][year][week][date][activity] += e.work
+			end
+		end
+		
+		puts "#{arg[:entry_count]} entries found"
+	end
+
+	def get_workspaces
+		get_account.workspaces.each do |workspace|
+			a = workspace.attributes
+			@workspaces[a[:id]] = a[:name]
+		end
 	end
 
 	def set_current_task _task_id
@@ -84,86 +142,35 @@ class LiquidPlannerInterface
 		return [week_day, week_end]
 	end
 
-	def get_account
-		begin
-			@account = @lp.account.attributes
-		rescue ActiveResource::UnauthorizedAccess => e
-			puts 'Unauthorized access. Incorrect email/password?'
-		rescue Exception => e
-			puts e.message
-			ap e.backtrace
-		end
-
-		return @lp.account
-	end
-
-	def get_tasks
+	def list _subject
 		raise RuntimeError, 'Workspace not set' if @current_workspace == nil
 
-		@current_workspace.tasks
-	end
-
-	def list_activities_in_workspace
-		raise RuntimeError, 'Workspace not set' if @current_workspace == nil
-		@current_workspace.activities.elements.each do |e|
-			a = e.attributes
-			@activities[a[:id]] = a[:name]
-		end
-	end
-
-	def list_items_in_workspace
-		raise RuntimeError, 'Workspace not set' if @current_workspace == nil
-		@current_workspace.treeitems.each do |e|
-			a = e.attributes
-			@items[a[:id]] = a
-		end
-	end
-
-	def list_members_in_workspace
-		raise RuntimeError, 'Workspace not set' if @current_workspace == nil
-		@current_workspace.members.elements.each do |e|
-			a = e.attributes
-			@members[a[:id]] = { user_name: 	a[:user_name],
-								 access_level: 	a[:access_level] }
-		end
-	end
-
-	def list_timesheets_in_workspace **h	
-		raise RuntimeError, 'Workspace not set' if @current_workspace == nil
-		arg = Hash.new
-
-		arg[:member_id] = @account[:id] unless h[:all_members]
-		arg[:start_date], arg[:end_date] = determine_date_range h
-
-		@current_workspace.timesheet_entries(:all,	arg).each do |e|
-			if e.work > 0 and e.activity_id > 0
-				member = @members[e.member_id][:user_name]
-				activity = @activities[e.activity_id]
-				date = e.work_performed_on
-				year = Date.parse(date).cwyear
-				week = Date.parse(date).cweek
-				@timesheets[member] ||= {}
-				@timesheets[member][year] ||= {}
-				@timesheets[member][year][week] ||= {}
-				@timesheets[member][year][week][date] ||= {}
-				@timesheets[member][year][week][date][activity] ||= 0
-				@timesheets[member][year][week][date][activity] += e.work
+		case _subject
+		when :activities
+			@current_workspace.activities.elements.each do |e|
+				a = e.attributes
+				@activities[a[:id]] = a
+			end
+		when :items
+			@current_workspace.treeitems.each do |e|
+				a = e.attributes
+				@items[a[:id]] = a
+			end
+		when :members
+			@current_workspace.members.elements.each do |e|
+				a = e.attributes
+				@members[a[:id]] = a
 			end
 		end
 	end
 
-	def list_workspaces
-		get_account.workspaces.each do |workspace|
-			a = workspace.attributes
-			@workspaces[a[:id]] = a[:name]
-		end
-	end
-
 	def populate_lookup_tables
-		list_workspaces
-		list_activities_in_workspace
-		list_members_in_workspace
-		list_items_in_workspace
+		print 'Loading workspace data... ' unless @quiet_mode
+		get_workspaces
+		list :activities
+		list :members
+		list :items
+		puts 'DONE!' unless @quiet_mode
 	end
 
 	def retrieve_task
