@@ -14,6 +14,7 @@ class LiquidPlannerInterface
 		@lp = LiquidPlanner::Base.new(email: h[:email], password: h[:pass])
 		@current_workspace = nil
 		@current_task = nil
+		@lookup_tables_loaded = false
 
 		@activities = {}
 		@items = {}
@@ -91,15 +92,51 @@ class LiquidPlannerInterface
 
 	def set_current_workspace _ws_id
 		@current_workspace = @lp.workspaces(_ws_id)
+		@lookup_tables_loaded = false
 
 		return self
 	end
 
 	def create_task **h
 		raise RuntimeError, 'Workspace not set' if @current_workspace == nil
-		task = @current_workspace.create_task(h).attributes
+
+		populate_lookup_tables
+		primary_properties = Hash.new
+		secondary_properties = Hash.new
+
+		h.each do |property, value|
+			case property
+			when :checklists, :estimate
+				secondary_properties[property] = value
+			when :activity_id, :owner_id, :package_id, :parent_id
+				if value.is_a? Integer
+					primary_properties[property] = value
+				else
+					primary_properties[property] = lookup(property, value)
+				end
+			else
+				primary_properties[property] = value
+			end
+		end
+
+		task = @current_workspace.create_task(primary_properties).attributes
 		set_current_task task[:id]
 
+		secondary_properties.each do |property, value|
+			case property
+			when :checklists
+				value.each do |checklist|
+					unless checklist[:owner_id].is_a? Integer 
+						checklist[:owner_id] = lookup(:owner_id, 
+													  checklist[:owner_id])
+					end
+					@current_task.create_checklist_items checklist
+				end
+			when :estimate
+				@current_task.create_estimate value
+			end
+		end
+		
 		return task
 	end
 
@@ -164,13 +201,51 @@ class LiquidPlannerInterface
 		end
 	end
 
+	def lookup _item, _value
+		lookup_matches = nil
+
+		case _item
+		when :activity_id
+			lookup_matches = @activities.select do |k, v|
+				v[:name] =~ /#{_value}/i
+			end
+		when :owner_id
+			lookup_matches = @members.select do |k, v| 
+				v[:user_name] =~ /#{_value}/i
+			end
+		when :package_id
+			lookup_matches = @items.select do |k, v| 
+				v[:name] =~ /#{_value}/i and v[:type] =~ /package/i
+			end
+		when :parent_id
+			lookup_matches = @items.select do |k, v| 
+				v[:name] =~ /#{_value}/i and v[:type] =~ /folder/i
+			end
+		end
+
+		case lookup_matches.length
+		when 0
+			raise RuntimeError, "No match returned for #{_item} #{_value}"
+		when 1
+			return lookup_matches.keys.first
+		else
+			raise RuntimeError, "Multiple match returned for #{_item} #{_value}"
+		end
+	end
+
 	def populate_lookup_tables
-		print 'Loading workspace data... ' unless @quiet_mode
-		get_workspaces
-		list :activities
-		list :members
-		list :items
-		puts 'DONE!' unless @quiet_mode
+		unless @lookup_tables_loaded
+			print 'Loading workspace data... ' unless @quiet_mode
+			get_workspaces
+			list :activities
+			list :members
+			list :items
+			puts 'DONE!' unless @quiet_mode
+
+			@lookup_tables_loaded = true
+		end
+
+		return self
 	end
 
 	def retrieve_task

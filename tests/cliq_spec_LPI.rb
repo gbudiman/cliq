@@ -150,27 +150,52 @@ describe 'LiquidPlannerInterface' do
 		end
 
 		it 'should be able to create task and update its checklist items' do
-			@lp.create_task(name: "New task test #{Time.now}", 
+			@lp.create_task(name: "New generated task #{Time.now}",
 							package_id: 17209536,
 							parent_id: 17209601,
 							activity_id: 172280,
 							owner_id: 410218,
-							description: 'This task is generated',
-							promise_by: Date.today.next_day(12))
-
-			@lp.update_task_properties(checklist: [
-										{ name: "New checklist #{Time.now}",
-										  owner_id: 410218 } ],
-							 		   estimate: [2.0, 5.5])
+							description: 'Automatically generated task',
+							promise_By: Date.today.next_day(10),
+							checklists: [
+								{ name: "New checklist #{Time.now}",
+								  owner_id: 410218 } ],
+							estimate: { low: 2.0, high: 5.5 })
 
 			ap @lp.retrieve_task
+		end
+
+
+		it 'should be able to create task using table lookup' do
+			puts 'Sleeping for 12 seconds to avoid account throttling...'
+			sleep 12
+			@lp.create_task(name: "Generated LUT task #{Time.now}",
+							package_id: 'monil',
+							parent_id: 'acadia',
+							activity_id: 'acadia',
+							owner_id: 'isabel',
+							description: 'Generated task with LUT',
+							promise_By: Date.today.next_day(10),
+							checklists: [
+								{ name: "New LUT checklist #{Time.now}",
+								  owner_id: 'sayali' } ],
+							estimate: { low: 2.0, high: 5.5 })
+
+			ap @lp.retrieve_task
+		end
+
+		it 'should be raise exception when table lookup fails' do
+			puts 'Sleeping for 12 seconds to avoid account throttling...'
+			sleep 12
+			expect {
+				@lp.create_task(name: "Generated LUT task #{Time.now}",
+								package_id: 'does not exist')
+				}.to raise_error(RuntimeError)
 		end
 
 		it 'should be able to retrieve a task' do
 			@lp.set_current_task(@lp.get_tasks.first.attributes[:id])
 			ap @lp.retrieve_task
-			puts 'Sleeping for 12 seconds to avoid account throttling...'
-			sleep 12
 		end
 
 		it 'should be able to list everything in workspace' do
@@ -197,6 +222,8 @@ describe 'LiquidPlannerInterface' do
 		end
 
 		it 'should be able to list timesheets with appropriate referencing' do
+			puts 'Sleeping for 12 seconds to avoid account throttling...'
+			sleep 12
 			@table.head = ['Member', 'Work', 'Activity', 'Hours']
 			@lp.populate_lookup_tables
 			@lp.get_timesheets(date: '2014', all_members: true)
